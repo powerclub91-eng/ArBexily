@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArBexily — Увійти</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-body">
+  <div class="auth-bg">
+    <div class="auth-blob blob1"></div>
+    <div class="auth-blob blob2"></div>
+    <div class="auth-blob blob3"></div>
+  </div>
+
+  <div class="auth-container">
+    <div class="auth-logo">
+      <div class="logo-icon">AB</div>
+      <h1>ArBexily</h1>
+      <p>Месенджер твого класу</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="tab-btn active" onclick="showTab('login')">Увійти</button>
+      <button class="tab-btn" onclick="showTab('register')">Реєстрація</button>
+    </div>
+
+    <!-- Login -->
+    <form id="login-form" class="auth-form" onsubmit="login(event)">
+      <div class="form-group">
+        <label>Логін</label>
+        <input type="text" id="login-username" placeholder="Твій логін" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <div id="login-error" class="form-error"></div>
+      <button type="submit" class="btn-primary">Увійти</button>
+    </form>
+
+    <!-- Register -->
+    <form id="register-form" class="auth-form hidden" onsubmit="register(event)">
+      <div class="form-group">
+        <label>Ім'я в чаті</label>
+        <input type="text" id="reg-display" placeholder="Як тебе звати?" required>
+      </div>
+      <div class="form-group">
+        <label>Логін</label>
+        <input type="text" id="reg-username" placeholder="Придумай логін" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Пароль</label>
+        <input type="password" id="reg-password" placeholder="Мінімум 4 символи" required minlength="4" autocomplete="new-password">
+      </div>
+      <div id="reg-error" class="form-error"></div>
+      <button type="submit" class="btn-primary">Зареєструватись</button>
+    </form>
+  </div>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArBexily</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="app-body">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-small">
+        <div class="logo-icon-sm">AB</div>
+        <span>ArBexily</span>
+      </div>
+      <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+    </div>
+
+    <!-- Profile -->
+    <div class="user-profile-card" id="profile-card">
+      <div class="avatar" id="my-avatar">?</div>
+      <div class="profile-info">
+        <div class="profile-name" id="my-name">...</div>
+        <div class="profile-coins">
+          <span class="coin-icon">🪙</span>
+          <span id="my-coins">0</span> монет
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" onclick="showPanel('chat')" id="nav-chat">
+        <span class="nav-icon">💬</span> Чат класу
+      </button>
+      <button class="nav-btn" onclick="showPanel('coins')" id="nav-coins">
+        <span class="nav-icon">🪙</span> Монети
+      </button>
+      <button class="nav-btn" onclick="showPanel('math')" id="nav-math">
+        <span class="nav-icon">🧮</span> Задачі
+      </button>
+      <button class="nav-btn" onclick="showPanel('speech')" id="nav-speech">
+        <span class="nav-icon">🎤</span> Мікрофон
+      </button>
+      <button class="nav-btn" onclick="showPanel('leaderboard')" id="nav-leaderboard">
+        <span class="nav-icon">🏆</span> Рейтинг
+      </button>
+      <button class="nav-btn admin-only hidden" onclick="showPanel('admin')" id="nav-admin">
+        <span class="nav-icon">🛡️</span> Адмін
+      </button>
+    </nav>
+
+    <!-- Online users -->
+    <div class="online-section">
+      <div class="section-title">Онлайн</div>
+      <div id="online-list" class="online-list"></div>
+    </div>
+
+    <button class="btn-logout" onclick="logout()">Вийти</button>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <!-- Mobile header -->
+    <div class="mobile-header">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <span class="mobile-title" id="mobile-title">Чат класу</span>
+      <div class="mobile-coins">🪙 <span id="mobile-coins">0</span></div>
+    </div>
+
+    <!-- ── Chat Panel ── -->
+    <div class="panel active" id="panel-chat">
+      <div class="chat-header">
+        <h2>💬 Чат класу</h2>
+        <div class="chat-status" id="chat-status">...</div>
+      </div>
+      <div class="messages-container" id="messages">
+        <div class="messages-loading">Завантаження...</div>
+      </div>
+      <div class="typing-indicator" id="typing-indicator"></div>
+      <div class="chat-input-area">
+        <button class="attach-btn speech-quick" onclick="showPanel('speech')" title="Мікрофон">🎤</button>
+        <input type="text" id="message-input" placeholder="Напиши повідомлення..." maxlength="1000"
+          onkeydown="handleMessageKey(event)" oninput="handleTyping()">
+        <button class="send-btn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+
+    <!-- ── Coins Panel ── -->
+    <div class="panel" id="panel-coins">
+      <div class="panel-header">
+        <h2>🪙 Мої монети</h2>
+      </div>
+      <div class="coins-display">
+        <div class="big-coins">
+          <span class="coin-big-icon">🪙</span>
+          <span id="coins-big">0</span>
+        </div>
+        <p>Збирай монети за задачі та мовлення!</p>
+      </div>
+      <div class="section-title">Як заробити монети?</div>
+      <div class="earn-ways">
+        <div class="earn-card" onclick="showPanel('math')">
+          <div class="earn-icon">🧮</div>
+          <div>
+            <strong>Математичні задачі</strong>
+            <p>Легка +5, Середня +10, Важка +20</p>
+          </div>
+        </div>
+        <div class="earn-card" onclick="showPanel('speech')">
+          <div class="earn-icon">🎤</div>
+          <div>
+            <strong>Мовлення (мікрофон)</strong>
+            <p>+2 монети за кожні 3 слова</p>
+          </div>
+        </div>
+      </div>
+      <div class="section-title">Історія</div>
+      <div id="coins-history" class="history-list">Завантаження...</div>
+    </div>
+
+    <!-- ── Math Panel ── -->
+    <div class="panel" id="panel-math">
+      <div class="panel-header">
+        <h2>🧮 Математичні задачі</h2>
+      </div>
+      <div class="difficulty-selector">
+        <button class="diff-btn active" onclick="selectDiff('easy', this)">Легка 🟢 (+5🪙)</button>
+        <button class="diff-btn" onclick="selectDiff('medium', this)">Середня 🟡 (+10🪙)</button>
+        <button class="diff-btn" onclick="selectDiff('hard', this)">Важка 🔴 (+20🪙)</button>
+      </div>
+      <div class="math-card" id="math-card">
+        <div class="math-problem-text" id="math-problem">Натисни "Нова задача"</div>
+        <div class="math-input-row">
+          <input type="number" id="math-answer" placeholder="Твоя відповідь" step="any"
+            onkeydown="if(event.key==='Enter') checkMathAnswer()">
+          <button class="btn-primary" onclick="checkMathAnswer()" id="check-btn" disabled>Перевірити</button>
+        </div>
+        <div id="math-result" class="math-result"></div>
+      </div>
+      <button class="btn-secondary" onclick="generateMath()">🎲 Нова задача</button>
+    </div>
+
+    <!-- ── Speech Panel ── -->
+    <div class="panel" id="panel-speech">
+      <div class="panel-header">
+        <h2>🎤 Мовлення</h2>
+      </div>
+      <div class="speech-card">
+        <p class="speech-desc">Говори вголос — отримуй монети! +2🪙 за кожні 3 слова</p>
+        <div class="mic-area" id="mic-area">
+          <button class="mic-btn" id="mic-btn" onclick="toggleSpeech()">
+            <span class="mic-icon">🎤</span>
+          </button>
+          <div class="mic-status" id="mic-status">Натисни мікрофон</div>
+        </div>
+        <div class="speech-text" id="speech-text"></div>
+        <div class="speech-actions hidden" id="speech-actions">
+          <button class="btn-primary" onclick="claimSpeechCoins()">🪙 Отримати монети</button>
+          <button class="btn-secondary" onclick="sendSpeechMessage()">💬 Надіслати в чат</button>
+          <button class="btn-ghost" onclick="clearSpeech()">Очистити</button>
+        </div>
+        <div id="speech-result" class="speech-result"></div>
+      </div>
+    </div>
+
+    <!-- ── Leaderboard Panel ── -->
+    <div class="panel" id="panel-leaderboard">
+      <div class="panel-header">
+        <h2>🏆 Рейтинг класу</h2>
+      </div>
+      <div id="leaderboard-list" class="leaderboard-list">Завантаження...</div>
+    </div>
+
+    <!-- ── Admin Panel ── -->
+    <div class="panel admin-only hidden" id="panel-admin">
+      <div class="panel-header">
+        <h2>🛡️ Адмін-панель</h2>
+      </div>
+      <div class="admin-stats" id="admin-stats">Завантаження...</div>
+      <div class="admin-sections">
+        <div class="admin-section">
+          <div class="section-title">Видати монети учню</div>
+          <div class="give-coins-form">
+            <select id="give-coins-user"></select>
+            <input type="number" id="give-coins-amount" placeholder="Кількість" min="1" max="1000">
+            <input type="text" id="give-coins-reason" placeholder="Причина">
+            <button class="btn-primary" onclick="giveCoins()">Видати</button>
+          </div>
+          <div id="give-coins-result"></div>
+        </div>
+        <div class="admin-section">
+          <div class="section-title">Всі повідомлення (тільки адмін)</div>
+          <div id="admin-messages" class="admin-messages-list">Завантаження...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/chat.js"></script>
+</body>
+</html>
