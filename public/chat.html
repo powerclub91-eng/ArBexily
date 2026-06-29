@@ -179,10 +179,28 @@
     <div class="panel admin-only hidden" id="panel-admin">
       <div class="panel-header">
         <h2>🛡️ Адмін-панель</h2>
+        <!-- Admin sub-tabs -->
+        <div class="admin-tabs">
+          <button class="admin-tab active" onclick="switchAdminTab('users')">👤 Учні</button>
+          <button class="admin-tab" onclick="switchAdminTab('messages')">💬 Повідомлення</button>
+          <button class="admin-tab" onclick="switchAdminTab('coins')">🪙 Монети</button>
+        </div>
       </div>
       <div class="admin-stats" id="admin-stats">Завантаження...</div>
-      <div class="admin-sections">
-        <div class="admin-section">
+
+      <!-- Tab: Users (real names + IPs + geo) -->
+      <div class="admin-tab-panel active" id="atab-users">
+        <div id="admin-users-list" class="admin-users-list">Завантаження...</div>
+      </div>
+
+      <!-- Tab: Messages -->
+      <div class="admin-tab-panel" id="atab-messages">
+        <div id="admin-messages" class="admin-messages-list">Завантаження...</div>
+      </div>
+
+      <!-- Tab: Give coins -->
+      <div class="admin-tab-panel" id="atab-coins">
+        <div class="admin-section" style="margin:16px">
           <div class="section-title">Видати монети учню</div>
           <div class="give-coins-form">
             <select id="give-coins-user"></select>
@@ -191,10 +209,6 @@
             <button class="btn-primary" onclick="giveCoins()">Видати</button>
           </div>
           <div id="give-coins-result"></div>
-        </div>
-        <div class="admin-section">
-          <div class="section-title">Всі повідомлення (тільки адмін)</div>
-          <div id="admin-messages" class="admin-messages-list">Завантаження...</div>
         </div>
       </div>
     </div>

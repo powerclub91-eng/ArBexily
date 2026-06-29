@@ -358,13 +358,24 @@ async function loadLeaderboard() {
 }
 
 // ─── Admin ─────────────────────────────────────────────────────────────────────
+let adminDataLoaded = false;
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.admin-tab[onclick*="${tab}"]`).classList.add('active');
+  document.getElementById(`atab-${tab}`).classList.add('active');
+}
+
 async function loadAdminPanel() {
-  const [statsRes, msgsRes] = await Promise.all([
+  const [statsRes, msgsRes, usersRes] = await Promise.all([
     fetch('/api/admin/stats'),
-    fetch('/api/admin/all-messages')
+    fetch('/api/admin/all-messages'),
+    fetch('/api/admin/users-full'),
   ]);
   const stats = await statsRes.json();
   const msgs = await msgsRes.json();
+  const users = await usersRes.json();
 
   document.getElementById('admin-stats').innerHTML = `
     <div class="stat-card"><div class="stat-value">${stats.users}</div><div class="stat-label">Учнів</div></div>
@@ -373,16 +384,92 @@ async function loadAdminPanel() {
     <div class="stat-card"><div class="stat-value">${stats.transactions}</div><div class="stat-label">Транзакцій</div></div>
   `;
 
+  // ── Users tab ──────────────────────────────────────────────
+  document.getElementById('admin-users-list').innerHTML = users.map(u => {
+    const sessionHtml = u.sessions.length ? u.sessions.map(s => {
+      const device = parseDeviceClient(s.user_agent);
+      const browser = parseBrowserClient(s.user_agent);
+      const geoStr = [s.city, s.region, s.country].filter(Boolean).join(', ') || 'Геолокація не визначена';
+      return `
+        <div class="session-item">
+          <div>
+            <div class="session-ip">📡 ${esc(s.ip)}</div>
+            <div class="session-geo">
+              <span class="geo-city">${esc(geoStr)}</span>
+              ${s.org ? `<br><span class="geo-org">🌐 ${esc(s.org)}</span>` : ''}
+            </div>
+            <div class="session-device">💻 ${device} · ${browser}</div>
+          </div>
+          <div class="session-time">
+            Перший: ${formatDate(s.first_seen)}<br>
+            Останній: ${formatDate(s.last_seen)}
+          </div>
+        </div>`;
+    }).join('') : '<div style="color:var(--text-dim);font-size:13px;padding:8px">Немає даних про підключення</div>';
+
+    return `
+      <div class="admin-user-card" id="auc-${u.id}">
+        <div class="admin-user-header" onclick="toggleUserCard(${u.id})">
+          <div class="msg-avatar" style="background:${u.avatar_color};width:42px;height:42px;border-radius:12px;font-size:17px;flex-shrink:0">
+            ${u.display_name[0].toUpperCase()}
+          </div>
+          <div class="admin-user-info">
+            <div class="admin-user-nick">
+              ${esc(u.display_name)}
+              ${u.role === 'admin' ? '<span class="admin-tag admin">Адмін</span>' : '<span class="admin-tag">Учень</span>'}
+            </div>
+            <div class="admin-user-real">
+              👤 ${esc(u.real_name || '—')} &nbsp;·&nbsp;
+              🔑 ${esc(u.username)} &nbsp;·&nbsp;
+              🪙 ${u.coins} &nbsp;·&nbsp;
+              📡 ${u.sessions.length} IP
+            </div>
+          </div>
+          <span class="chevron">▶</span>
+        </div>
+        <div class="admin-user-sessions">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">IP / Геолокація</div>
+          ${sessionHtml}
+        </div>
+      </div>`;
+  }).join('') || '<p style="color:var(--text-muted);padding:16px">Немає учнів</p>';
+
+  // ── Messages tab ───────────────────────────────────────────
   document.getElementById('admin-messages').innerHTML = msgs.slice().reverse().map(m => `
     <div class="admin-msg" id="admin-msg-${m.id}">
-      <div class="msg-avatar" style="background:${m.avatar_color};width:32px;height:32px;border-radius:8px;font-size:13px">${m.display_name[0]}</div>
+      <div class="msg-avatar" style="background:${m.avatar_color};width:32px;height:32px;border-radius:8px;font-size:13px;flex-shrink:0">${m.display_name[0]}</div>
       <div class="admin-msg-info">
         <div class="admin-msg-name">${esc(m.display_name)} <span style="color:var(--text-dim)">(${esc(m.username)})</span></div>
         <div class="admin-msg-text">${esc(m.content)}</div>
         <div class="admin-msg-time">${formatDate(m.created_at)}</div>
       </div>
       <button class="btn-delete" onclick="deleteMessage(${m.id})">🗑</button>
-    </div>`).join('') || '<p style="color:var(--text-muted)">Немає повідомлень</p>';
+    </div>`).join('') || '<p style="color:var(--text-muted);padding:16px">Немає повідомлень</p>';
+}
+
+function toggleUserCard(id) {
+  document.getElementById(`auc-${id}`).classList.toggle('open');
+}
+
+// client-side device/browser parsers (mirrors server logic)
+function parseDeviceClient(ua = '') {
+  if (!ua) return 'Невідомий';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Mobile/.test(ua)) return 'Мобільний';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Macintosh|Mac OS/.test(ua)) return 'Mac';
+  if (/Linux/.test(ua)) return 'Linux';
+  return 'ПК';
+}
+function parseBrowserClient(ua = '') {
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/OPR\/|Opera/.test(ua)) return 'Opera';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  if (/Safari\//.test(ua)) return 'Safari';
+  return 'Браузер';
 }
 
 async function giveCoins() {

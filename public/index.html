@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ArBexily — Увійти</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="auth-body">
@@ -44,12 +43,20 @@
     <!-- Register -->
     <form id="register-form" class="auth-form hidden" onsubmit="register(event)">
       <div class="form-group">
-        <label>Ім'я в чаті</label>
-        <input type="text" id="reg-display" placeholder="Як тебе звати?" required>
+        <label>Справжнє ім'я <span style="color:var(--text-dim);font-size:11px">(тільки для адміна)</span></label>
+        <input type="text" id="reg-real-name" placeholder="Іванов Іван" required autocomplete="name">
       </div>
       <div class="form-group">
-        <label>Логін</label>
-        <input type="text" id="reg-username" placeholder="Придумай логін" required autocomplete="username">
+        <label>Нікнейм у чаті</label>
+        <div class="nickname-row">
+          <input type="text" id="reg-display" placeholder="ВогняннийВареник42" required maxlength="30">
+          <button type="button" class="btn-generate" onclick="generateNick()" title="Згенерувати">🎲</button>
+        </div>
+        <div class="nick-hint">Придумай сам або натисни 🎲 для випадкового</div>
+      </div>
+      <div class="form-group">
+        <label>Логін <span style="color:var(--text-dim);font-size:11px">(для входу)</span></label>
+        <input type="text" id="reg-username" placeholder="myvanya2008" required autocomplete="username">
       </div>
       <div class="form-group">
         <label>Пароль</label>

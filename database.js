@@ -8,6 +8,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
+    real_name TEXT NOT NULL DEFAULT '',
     display_name TEXT NOT NULL,
     role TEXT DEFAULT 'student',
     coins INTEGER DEFAULT 0,
@@ -15,6 +16,9 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // add real_name column if upgrading from old DB
+  db.run(`ALTER TABLE users ADD COLUMN real_name TEXT NOT NULL DEFAULT ''`, () => {});
 
   db.run(`CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +46,23 @@ db.serialize(() => {
     solved INTEGER DEFAULT 0,
     earned_coins INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS user_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ip TEXT NOT NULL,
+    user_agent TEXT,
+    city TEXT,
+    region TEXT,
+    country TEXT,
+    org TEXT,
+    latitude REAL,
+    longitude REAL,
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, ip),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`);
 });

@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -15,9 +16,103 @@ const JWT_SECRET = 'arbexily-super-secret-2024';
 const ADMIN_USERNAME = 'admin';
 const PORT = process.env.PORT || 3000;
 
+// geo cache so we don't spam the free API
+const geoCache = new Map();
+
 app.use(express.json());
 app.use(cookieParser());
+// trust proxy so req.ip works behind nginx/etc
+app.set('trust proxy', true);
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ─── Geo & Session Tracking ───────────────────────────────────────────────────
+function getClientIp(req) {
+  return (
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.headers['x-real-ip'] ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    'unknown'
+  );
+}
+
+function parseDevice(ua = '') {
+  if (!ua) return 'Невідомий';
+  if (/Mobile|Android|iPhone|iPad/.test(ua)) {
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    if (/Android/.test(ua)) return 'Android';
+    return 'Мобільний';
+  }
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Macintosh|Mac OS/.test(ua)) return 'Mac';
+  if (/Linux/.test(ua)) return 'Linux';
+  return 'ПК';
+}
+
+function parseBrowser(ua = '') {
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/OPR\/|Opera/.test(ua)) return 'Opera';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  if (/Safari\//.test(ua)) return 'Safari';
+  return 'Браузер';
+}
+
+async function fetchGeo(ip) {
+  if (geoCache.has(ip)) return geoCache.get(ip);
+  // skip private/loopback IPs
+  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|localhost)/.test(ip)) {
+    const local = { city: 'Localhost', region: '', country: 'LOCAL', org: '', latitude: null, longitude: null };
+    geoCache.set(ip, local);
+    return local;
+  }
+  return new Promise((resolve) => {
+    const req = https.get(`https://ipapi.co/${ip}/json/`, { timeout: 4000 }, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(data);
+          const geo = {
+            city: j.city || '',
+            region: j.region || '',
+            country: j.country_name || j.country || '',
+            org: j.org || '',
+            latitude: j.latitude || null,
+            longitude: j.longitude || null,
+          };
+          geoCache.set(ip, geo);
+          resolve(geo);
+        } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function trackSession(userId, ip, userAgent) {
+  const geo = await fetchGeo(ip);
+  const existing = await db.getAsync(
+    'SELECT id FROM user_sessions WHERE user_id = ? AND ip = ?',
+    [userId, ip]
+  );
+  if (existing) {
+    await db.runAsync(
+      'UPDATE user_sessions SET last_seen = CURRENT_TIMESTAMP, user_agent = ? WHERE user_id = ? AND ip = ?',
+      [userAgent, userId, ip]
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO user_sessions (user_id, ip, user_agent, city, region, country, org, latitude, longitude)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, ip, userAgent,
+        geo?.city || '', geo?.region || '', geo?.country || '',
+        geo?.org || '', geo?.latitude || null, geo?.longitude || null]
+    );
+  }
+}
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 function authMiddleware(req, res, next) {
@@ -33,8 +128,8 @@ function authMiddleware(req, res, next) {
 
 // ─── Auth Routes ─────────────────────────────────────────────────────────────
 app.post('/api/register', async (req, res) => {
-  const { username, password, display_name } = req.body;
-  if (!username || !password || !display_name)
+  const { username, password, real_name, display_name } = req.body;
+  if (!username || !password || !real_name || !display_name)
     return res.status(400).json({ error: "Всі поля обов'язкові" });
 
   const colors = ['#6c63ff','#ff6584','#43b89c','#f7b731','#fc5c65','#45aaf2','#26de81'];
@@ -44,18 +139,35 @@ app.post('/api/register', async (req, res) => {
 
   try {
     const result = await db.runAsync(
-      'INSERT INTO users (username, password, display_name, role, avatar_color) VALUES (?, ?, ?, ?, ?)',
-      [username, hash, display_name, role, avatar_color]
+      'INSERT INTO users (username, password, real_name, display_name, role, avatar_color) VALUES (?, ?, ?, ?, ?, ?)',
+      [username, hash, real_name.trim(), display_name.trim(), role, avatar_color]
     );
     const user = await db.getAsync('SELECT * FROM users WHERE id = ?', [result.lastID]);
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    trackSession(result.lastID, getClientIp(req), req.headers['user-agent'] || '').catch(() => {});
     res.json({ success: true, user: safeUser(user) });
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Логін вже зайнятий' });
     console.error(e);
     res.status(500).json({ error: 'Помилка сервера' });
   }
+});
+
+// Admin: get all users with real names + session IPs
+app.get('/api/admin/users-full', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Доступ заборонено' });
+  const users = await db.allAsync(
+    'SELECT id, username, real_name, display_name, role, coins, avatar_color, created_at, last_seen FROM users ORDER BY created_at DESC'
+  );
+  const sessions = await db.allAsync(
+    'SELECT * FROM user_sessions ORDER BY last_seen DESC'
+  );
+  const result = users.map(u => ({
+    ...u,
+    sessions: sessions.filter(s => s.user_id === u.id)
+  }));
+  res.json(result);
 });
 
 app.post('/api/login', async (req, res) => {
@@ -67,6 +179,7 @@ app.post('/api/login', async (req, res) => {
   await db.runAsync('UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+  trackSession(user.id, getClientIp(req), req.headers['user-agent'] || '').catch(() => {});
   res.json({ success: true, user: safeUser(user) });
 });
 
@@ -214,6 +327,32 @@ app.post('/api/admin/give-coins', authMiddleware, async (req, res) => {
   res.json({ success: true, total_coins: user.coins });
 });
 
+// Returns all sessions (IPs + geo) for every user, grouped by user
+app.get('/api/admin/sessions', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Доступ заборонено' });
+  const sessions = await db.allAsync(`
+    SELECT s.*, u.display_name, u.username, u.avatar_color
+    FROM user_sessions s JOIN users u ON s.user_id = u.id
+    ORDER BY s.last_seen DESC
+  `);
+  res.json(sessions);
+});
+
+// Refresh geo for a specific IP (admin can re-fetch if needed)
+app.post('/api/admin/refresh-geo', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Доступ заборонено' });
+  const { session_id, ip } = req.body;
+  geoCache.delete(ip);
+  const geo = await fetchGeo(ip);
+  if (geo) {
+    await db.runAsync(
+      'UPDATE user_sessions SET city=?, region=?, country=?, org=?, latitude=?, longitude=? WHERE id=?',
+      [geo.city, geo.region, geo.country, geo.org, geo.latitude, geo.longitude, session_id]
+    );
+  }
+  res.json({ success: true, geo });
+});
+
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 const onlineUsers = new Map();
 
@@ -234,6 +373,14 @@ io.on('connection', (socket) => {
   const userId = socket.user.id;
   onlineUsers.set(userId, socket.id);
   io.emit('online_users', Array.from(onlineUsers.keys()));
+
+  // track IP from socket connection
+  const socketIp =
+    socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    socket.handshake.address ||
+    'unknown';
+  const ua = socket.handshake.headers['user-agent'] || '';
+  trackSession(userId, socketIp, ua).catch(() => {});
 
   socket.on('send_message', async ({ content, type = 'text' }) => {
     if (!content?.trim()) return;
